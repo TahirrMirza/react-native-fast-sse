@@ -1,6 +1,6 @@
 {
   "name": "react-native-turbo-sse",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A high-performance, zero-buffering native Server-Sent Events (SSE) client for React Native powered by TurboModules and JSI. Ideal for real-time AI/LLM streaming.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
