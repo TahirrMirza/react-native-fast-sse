@@ -6,11 +6,11 @@ import {
   TextInput,
   Button,
   FlatList,
-  ScrollView,
 } from 'react-native';
 import { TurboEventSource } from 'react-native-turbo-sse';
 
-const defaultUrl = 'http://192.168.1.5:3000';
+// Replace with your local machine's IP address if testing on a physical device
+const defaultUrl = 'http://YOUR_AI_API';
 
 export default function App() {
   const [url, setUrl] = useState(defaultUrl);
@@ -33,19 +33,7 @@ export default function App() {
     };
   }, [sse]);
 
-  const connect = () => {
-    if (!url) return;
-
-    if (sse) sse.close();
-
-    setMessages([]);
-    bufferRef.current = '';
-    setStatus('Connecting...');
-
-    const source = new TurboEventSource(url, {
-      method: 'GET',
-    });
-
+  const setupListeners = (source: TurboEventSource) => {
     source.onOpen(() => {
       setStatus('Connected');
     });
@@ -63,18 +51,28 @@ export default function App() {
         return;
       }
 
-      // Accumulate tokens in the mutable ref (extremely fast, doesn't trigger renders)
-      bufferRef.current += event.data;
+      // Try to parse Gemini format, otherwise fall back to raw data
+      let token = event.data;
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.candidates?.[0]?.content?.parts?.[0]?.text) {
+          token = payload.candidates[0].content.parts[0].text;
+        }
+      } catch (e) {
+        // Not JSON or not Gemini format, keep raw token
+      }
 
-      // Throttle state updates to 30 FPS (roughly every 32ms) to prevent freezing
+      // Accumulate tokens in the mutable ref
+      bufferRef.current += token;
+
+      // Throttle state updates to 30 FPS
       if (!flushTimeoutRef.current) {
         flushTimeoutRef.current = setTimeout(() => {
           const newChunk = bufferRef.current;
           bufferRef.current = '';
           flushTimeoutRef.current = null;
 
-          // Truncate massive single chunks so the React Native Text layout engine (Yoga) doesn't completely freeze
-          const MAX_CHARS = 500;
+          const MAX_CHARS = 1000;
           const safeChunk =
             newChunk.length > MAX_CHARS
               ? newChunk.substring(0, MAX_CHARS) +
@@ -91,9 +89,22 @@ export default function App() {
     });
 
     setSse(source);
-
-    // Explicitly start the connection
     source.connect();
+  };
+
+  const connect = () => {
+    if (!url) return;
+    if (sse) sse.close();
+
+    setMessages([]);
+    bufferRef.current = '';
+    setStatus('Connecting...');
+
+    const source = new TurboEventSource(url, {
+      method: 'GET',
+    });
+
+    setupListeners(source);
   };
 
   const disconnect = () => {
@@ -118,46 +129,6 @@ export default function App() {
       <View style={styles.row}>
         <Button title="Connect" onPress={connect} />
         <Button title="Disconnect" onPress={disconnect} color="red" />
-      </View>
-
-      <View style={styles.scenariosContainer}>
-        <Text style={styles.scenariosTitle}>Test Scenarios:</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.scenarioScroll}
-        >
-          <View style={styles.scenarioBtn}>
-            <Button
-              title="Firehose"
-              onPress={() => setUrl('http://192.168.1.5:3000/firehose')}
-            />
-          </View>
-          <View style={styles.scenarioBtn}>
-            <Button
-              title="Massive 1MB"
-              onPress={() => setUrl('http://192.168.1.5:3000/massive-payload')}
-            />
-          </View>
-          <View style={styles.scenarioBtn}>
-            <Button
-              title="Slow Drip"
-              onPress={() => setUrl('http://192.168.1.5:3000/slow-drip')}
-            />
-          </View>
-          <View style={styles.scenarioBtn}>
-            <Button
-              title="Error Drop"
-              onPress={() => setUrl('http://192.168.1.5:3000/error-drop')}
-            />
-          </View>
-          <View style={styles.scenarioBtn}>
-            <Button
-              title="Infinite"
-              onPress={() => setUrl('http://192.168.1.5:3000/infinite')}
-            />
-          </View>
-        </ScrollView>
       </View>
 
       <Text style={styles.status}>Status: {status}</Text>
@@ -210,22 +181,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 10,
   },
-  scenariosContainer: {
-    marginBottom: 20,
-    backgroundColor: '#e9ecef',
-    padding: 10,
-    borderRadius: 8,
-  },
-  scenariosTitle: {
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  scenarioScroll: {
-    flexDirection: 'row',
-  },
-  scenarioBtn: {
-    marginRight: 10,
-  },
+
   logs: {
     flex: 1,
     backgroundColor: 'white',

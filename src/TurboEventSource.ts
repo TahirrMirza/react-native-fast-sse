@@ -77,6 +77,8 @@ export class TurboEventSource {
       httpMethod,
       headers,
       this._options.body || '',
+      this._options.connectTimeoutMs ?? 10000,
+      this._options.readTimeoutMs ?? 0,
       () => {
         console.log(`[TurboSSE] Connected successfully to ${this._url}`);
         this._onOpenCallback?.();

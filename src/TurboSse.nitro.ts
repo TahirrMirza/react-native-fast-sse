@@ -9,6 +9,8 @@ export interface TurboSse extends HybridObject<{
     httpMethod: string,
     headers: Record<string, string>,
     body: string,
+    connectTimeoutMs: number,
+    readTimeoutMs: number,
     onOpen: () => void,
     onMessage: (event: string, id: string, data: string) => void,
     onError: (message: string) => void,

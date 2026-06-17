@@ -1,6 +1,7 @@
 import Foundation
 
-class TurboSse: HybridTurboSseSpec, URLSessionDataDelegate {
+class TurboSse: HybridTurboSseSpec {
+    private var sessionDelegate: TurboSseSessionDelegate?
     private var session: URLSession?
     private var dataTask: URLSessionDataTask?
     private var sseParser: SSEParser?
@@ -13,6 +14,8 @@ class TurboSse: HybridTurboSseSpec, URLSessionDataDelegate {
         httpMethod: String, 
         headers: [String: String], 
         body: String, 
+        connectTimeoutMs: Double,
+        readTimeoutMs: Double,
         onOpen: @escaping () -> Void, 
         onMessage: @escaping (String, String, String) -> Void, 
         onError: @escaping (String) -> Void, 
@@ -39,10 +42,13 @@ class TurboSse: HybridTurboSseSpec, URLSessionDataDelegate {
         }
         
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = .infinity
+        config.timeoutIntervalForRequest = readTimeoutMs > 0 ? readTimeoutMs / 1000.0 : .infinity
+        // timeoutIntervalForResource sets a hard limit on the TOTAL time of the connection (including streaming time).
+        // Since SSE is a long-lived stream, we must set this to infinity.
         config.timeoutIntervalForResource = .infinity
         
-        session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        self.sessionDelegate = TurboSseSessionDelegate(turboSse: self)
+        session = URLSession(configuration: config, delegate: self.sessionDelegate, delegateQueue: nil)
         dataTask = session?.dataTask(with: request)
         
         // Store callbacks as properties or use blocks safely. Since Nitro dispatches to JS directly, 
@@ -72,7 +78,7 @@ class TurboSse: HybridTurboSseSpec, URLSessionDataDelegate {
     private var onErrorCallback: ((String) -> Void)?
     private var onCloseCallback: (() -> Void)?
 
-    // MARK: - URLSessionDataDelegate
+    // MARK: - URLSessionDataDelegate Handlers
     
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         guard !closed else {
@@ -121,5 +127,25 @@ class TurboSse: HybridTurboSseSpec, URLSessionDataDelegate {
         } else {
             onCloseCallback?()
         }
+    }
+}
+
+class TurboSseSessionDelegate: NSObject, URLSessionDataDelegate {
+    weak var turboSse: TurboSse?
+    
+    init(turboSse: TurboSse) {
+        self.turboSse = turboSse
+    }
+    
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        turboSse?.urlSession(session, dataTask: dataTask, didReceive: response, completionHandler: completionHandler)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        turboSse?.urlSession(session, dataTask: dataTask, didReceive: data)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        turboSse?.urlSession(session, task: task, didCompleteWithError: error)
     }
 }

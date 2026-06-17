@@ -27,6 +27,8 @@ class TurboSse : HybridTurboSseSpec() {
     httpMethod: String, 
     headers: Map<String, String>, 
     body: String,
+    connectTimeoutMs: Double,
+    readTimeoutMs: Double,
     onOpen: () -> Unit,
     onMessage: (event: String, id: String, data: String) -> Unit,
     onError: (message: String) -> Unit,
@@ -42,7 +44,13 @@ class TurboSse : HybridTurboSseSpec() {
       requestBuilder.post(body.toRequestBody())
     }
 
-    currentSource = EventSources.createFactory(client)
+    // Configure connection-specific timeouts
+    val connectionClient = client.newBuilder()
+      .connectTimeout(connectTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+      .readTimeout(readTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+      .build()
+
+    currentSource = EventSources.createFactory(connectionClient)
       .newEventSource(requestBuilder.build(), object : EventSourceListener() {
         override fun onOpen(es: EventSource, response: Response) {
           if (closed) return

@@ -5,7 +5,9 @@ export interface SSEEvent {
 }
 
 export interface TurboSSEOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   headers?: Record<string, string>;
   body?: string;
+  connectTimeoutMs?: number;
+  readTimeoutMs?: number;
 }
