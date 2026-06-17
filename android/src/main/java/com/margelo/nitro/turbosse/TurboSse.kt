@@ -24,7 +24,7 @@ class TurboSse : HybridTurboSseSpec() {
 
   override fun connect(
     url: String, 
-    method: String, 
+    httpMethod: String, 
     headers: Map<String, String>, 
     body: String,
     onOpen: () -> Unit,
@@ -38,7 +38,7 @@ class TurboSse : HybridTurboSseSpec() {
     val requestBuilder = Request.Builder().url(url)
     headers.forEach { (k, v) -> requestBuilder.addHeader(k, v) }
     
-    if (method.uppercase() == "POST") {
+    if (httpMethod.uppercase() == "POST") {
       requestBuilder.post(body.toRequestBody())
     }
 
@@ -57,7 +57,8 @@ class TurboSse : HybridTurboSseSpec() {
         override fun onFailure(es: EventSource, t: Throwable?, response: Response?) {
           if (closed) return
           readyState = 2.0
-          onError(t?.message ?: "Connection failed")
+          val errorDetail = t?.message ?: t?.toString() ?: "Connection failed with code ${response?.code}"
+          onError(errorDetail)
         }
         override fun onClosed(es: EventSource) {
           if (closed) return

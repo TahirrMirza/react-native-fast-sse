@@ -10,7 +10,7 @@ class TurboSse: HybridTurboSseSpec, URLSessionDataDelegate {
 
     public func connect(
         url: String, 
-        method: String, 
+        httpMethod: String, 
         headers: [String: String], 
         body: String, 
         onOpen: @escaping () -> Void, 
@@ -29,12 +29,12 @@ class TurboSse: HybridTurboSseSpec, URLSessionDataDelegate {
         }
         
         var request = URLRequest(url: requestUrl)
-        request.httpMethod = method
+        request.httpMethod = httpMethod
         for (key, value) in headers {
             request.addValue(value, forHTTPHeaderField: key)
         }
         
-        if method.uppercased() == "POST" && !body.isEmpty {
+        if httpMethod.uppercased() == "POST" && !body.isEmpty {
             request.httpBody = body.data(using: .utf8)
         }
         

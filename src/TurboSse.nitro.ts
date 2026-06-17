@@ -6,7 +6,7 @@ export interface TurboSse extends HybridObject<{
 }> {
   connect(
     url: string,
-    method: string,
+    httpMethod: string,
     headers: Record<string, string>,
     body: string,
     onOpen: () => void,

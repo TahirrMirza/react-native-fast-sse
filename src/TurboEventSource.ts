@@ -11,8 +11,6 @@ export class TurboEventSource {
   private _options: TurboSSEOptions;
 
   private _lastEventId: string = '';
-  private _retryDelay: number = 1000;
-  private _retryTimer?: ReturnType<typeof setTimeout>;
   private _userClosed = false;
 
   private _onOpenCallback?: () => void;
@@ -23,12 +21,18 @@ export class TurboEventSource {
     this._url = url;
     this._options = options || {};
     this._native = TurboSseHybridObject;
-    // We initiate connection immediately to mimic browser EventSource
-    this._connect();
   }
 
   get readyState(): 0 | 1 | 2 {
     return this._native.readyState as 0 | 1 | 2;
+  }
+
+  /**
+   * Manually initiates the connection to the SSE endpoint.
+   */
+  public connect(): void {
+    this._userClosed = false;
+    this._connectInternal();
   }
 
   onOpen(cb: () => void): void {
@@ -43,41 +47,56 @@ export class TurboEventSource {
     this._onErrorCallback = cb;
   }
 
-  close(): void {
+  public close(): void {
+    console.log(`[TurboSSE] User closed connection to ${this._url}`);
     this._userClosed = true;
-    clearTimeout(this._retryTimer);
     this._native.disconnect();
   }
 
-  private _connect(): void {
-    const method = this._options.method || 'GET';
+  /**
+   * Disconnects the stream. Alias for close().
+   */
+  public disconnect(): void {
+    this.close();
+  }
+
+  private _connectInternal(): void {
+    const httpMethod = this._options.method || 'GET';
     const headers = { ...this._options.headers };
 
     if (this._lastEventId) {
       headers['Last-Event-ID'] = this._lastEventId;
     }
 
+    console.log(
+      `[TurboSSE] Connecting to ${this._url} with method ${httpMethod}`
+    );
+
     this._native.connect(
       this._url,
-      method,
+      httpMethod,
       headers,
       this._options.body || '',
       () => {
-        // Reset retry delay on successful connection
-        this._retryDelay = 1000;
+        console.log(`[TurboSSE] Connected successfully to ${this._url}`);
         this._onOpenCallback?.();
       },
       (event: string, id: string, data: string) => {
+        console.log(
+          `[TurboSSE] Received message - Event: ${event}, ID: ${id}, Data length: ${data.length}`
+        );
         if (id) {
           this._lastEventId = id;
         }
         this._onMessageCallback?.({ event, id, data });
       },
       (message: string) => {
+        console.error(`[TurboSSE] Native error: ${message}`);
         this._onErrorCallback?.(new Error(message));
         this._handleDisconnect(message);
       },
       () => {
+        console.log(`[TurboSSE] Native connection closed.`);
         this._handleDisconnect();
       }
     );
@@ -85,37 +104,6 @@ export class TurboEventSource {
 
   private _handleDisconnect(errorMsg?: string): void {
     if (this._userClosed) return;
-
-    // Based on WHATWG EventSource rules for reconnection
-    let shouldReconnect = true;
-    if (errorMsg) {
-      // If we got a 204 No Content, server explicitly ended the stream
-      if (errorMsg.includes('HTTP Error 204') || errorMsg.includes('204')) {
-        shouldReconnect = false;
-      }
-      // If we got a 4xx client error, don't reconnect
-      if (errorMsg.match(/HTTP Error 4\d\d/)) {
-        shouldReconnect = false;
-      }
-    }
-
-    if (shouldReconnect) {
-      this._scheduleReconnect();
-    }
-  }
-
-  private _scheduleReconnect(): void {
-    if (this._userClosed) return;
-
-    clearTimeout(this._retryTimer);
-
-    // Add jitter to avoid thundering herd
-    const delay = this._retryDelay + Math.random() * 500;
-    this._retryTimer = setTimeout(() => {
-      this._connect();
-    }, delay);
-
-    // Exponential backoff capped at 30 seconds
-    this._retryDelay = Math.min(this._retryDelay * 2, 30_000);
+    console.log(`[TurboSSE] Disconnected. Error: ${errorMsg || 'None'}`);
   }
 }

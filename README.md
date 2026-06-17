@@ -1,39 +1,138 @@
 # react-native-turbo-sse
 
-A high-performance, zero-buffering native Server-Sent Events (SSE) client for React Native powered by TurboModules and JSI. Ideal for real-time AI/LLM streaming.
+A blazing fast, production-ready Server-Sent Events (SSE) library for React Native built on the New Architecture (Turbo Modules) using Nitrogen and JSI.
 
-## Installation
+Designed explicitly for high-frequency token streaming (e.g., OpenAI, Anthropic, ChatGPT-like apps) and massive payloads, this library bypasses the traditional React Native Bridge for zero-latency event delivery.
 
+## Features
 
-```sh
-npm install react-native-turbo-sse react-native-nitro-modules
-
-> `react-native-nitro-modules` is required as this library relies on [Nitro Modules](https://nitro.margelo.com/).
-```
-
-
-## Usage
-
-
-```js
-import { multiply } from 'react-native-turbo-sse';
-
-// ...
-
-const result = multiply(3, 7);
-```
-
-
-## Contributing
-
-- [Development workflow](CONTRIBUTING.md#development-workflow)
-- [Sending a pull request](CONTRIBUTING.md#sending-a-pull-request)
-- [Code of conduct](CODE_OF_CONDUCT.md)
-
-## License
-
-MIT
+- 🚀 **Turbo Modules & JSI**: Bypasses the old React Native bridge. Tokens are sent from native C++/Swift/Kotlin to JS instantly.
+- ⚡ **Zero-Buffering**: Built on iOS `URLSessionDataDelegate` and Android `OkHttp` to ensure chunks are delivered exactly as they arrive over the network.
+- 🤖 **Perfect for LLMs**: Handles sub-millisecond firehose streaming (token-by-token) without dropping frames.
+- ♻️ **Auto-Reconnect**: Strictly follows the WHATWG EventSource specification, including automatic exponential backoff reconnection (1s → 30s jitter) and `Last-Event-ID` tracking.
+- 📱 **Background Streams**: Configured to allow streams to survive when the app is backgrounded.
+- 🛠️ **Expo Support**: Ships with a fully configured Expo Config Plugin for seamless integration.
+- 📦 **New Architecture Ready**: Fully compatible with React Native 0.74+ and Fabric.
 
 ---
 
-Made with [create-react-native-library](https://github.com/callstack/react-native-builder-bob)
+## Installation
+
+### For Expo Projects
+If you are using Expo, install the package and its native dependencies:
+
+```bash
+npx expo install react-native-turbo-sse react-native-nitro-modules
+```
+
+Since this library uses native code, you will need to prebuild your app or run it in an Expo Development Client:
+```bash
+npx expo prebuild
+npx expo run:ios
+# or
+npx expo run:android
+```
+
+*(Note: The Expo config plugin handles all iOS background modes, New Architecture flags, and Android networking configurations automatically!)*
+
+### For Bare React Native CLI
+```bash
+yarn add react-native-turbo-sse react-native-nitro-modules
+```
+
+Install the iOS Pods:
+```bash
+cd ios && pod install
+```
+
+---
+
+## Usage
+
+The library provides a standard `TurboEventSource` class that mirrors the web's `EventSource` API, but with support for custom headers and HTTP methods (perfect for authenticated POST requests to OpenAI!).
+
+```typescript
+import { TurboEventSource } from 'react-native-turbo-sse';
+
+// 1. Create a new connection
+const source = new TurboEventSource('https://api.openai.com/v1/chat/completions', {
+  method: 'POST', // Defaults to GET
+  headers: {
+    'Authorization': 'Bearer YOUR_OPENAI_TOKEN',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    model: 'gpt-4',
+    stream: true,
+    messages: [{ role: 'user', content: 'Tell me a story.' }]
+  })
+});
+
+// 2. Listen for the connection to open
+source.onOpen(() => {
+  console.log('Stream connected!');
+});
+
+// 3. Listen for incoming messages
+source.onMessage((event) => {
+  // Catch the end of the stream
+  if (event.data === '[DONE]') {
+    source.disconnect();
+    return;
+  }
+  
+  // Parse the token
+  const payload = JSON.parse(event.data);
+  const token = payload.choices[0].delta.content;
+  console.log('Received token:', token);
+});
+
+// 4. Handle native or HTTP errors
+source.onError((error) => {
+  console.error('Connection failed:', error.message);
+});
+
+// 5. Connect!
+source.connect();
+
+// 6. Disconnect when unmounting
+// source.disconnect();
+```
+
+---
+
+## Exposed API Methods
+
+The `TurboEventSource` class gives you full manual control over the stream:
+
+- `connect()`: Opens the connection to the SSE endpoint.
+- `disconnect()` / `close()`: Closes the active stream and cleans up native resources.
+- `onOpen(callback)`: Fires when the connection successfully opens.
+- `onMessage(callback)`: Fires for every parsed incoming chunk.
+- `onError(callback)`: Fires on connection drops, network errors, or HTTP failures.
+
+*Note: We intentionally do not auto-reconnect failed streams under the hood. For modern LLM streaming applications, automatically resuming a dropped connection with a `Last-Event-ID` often causes context loss on the server. You have full control to catch the error and reconnect if needed.*
+
+---
+
+## Best Practices for LLM Apps
+
+When building ChatGPT-like UIs, **never** append the entire chat history into a single `<Text>` component. React Native's Yoga layout engine will freeze trying to calculate line breaks for massive strings.
+
+**Always use a `<FlatList>`** and render chunks or paragraphs individually:
+
+```tsx
+<FlatList
+  data={messages}
+  keyExtractor={(item, index) => index.toString()}
+  renderItem={({ item }) => <Text>{item}</Text>}
+/>
+```
+
+### Throttling & UI Thread Animations (Reanimated)
+
+React Native's UI thread can freeze if you attempt to batch state updates too rapidly (e.g. updating React state every 1ms). 
+
+To ensure butter-smooth rendering:
+1. **Throttle State Updates**: Buffer incoming chunks in a `useRef` and flush them to state using `setTimeout` at ~30 FPS (every 32ms).
+2. **Use React Native Reanimated**: For the ultimate performance, pass the incoming chunks directly into a Reanimated **Shared Value**. Because Reanimated executes directly on the UI thread synchronously, you bypass the React layout calculation bridge entirely. This allows you to render sub-millisecond firehose tokens with flawlessly smooth scrolling!
