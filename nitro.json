@@ -1,0 +1,23 @@
+{
+  "cxxNamespace": ["turbosse"],
+  "ios": {
+    "iosModuleName": "TurboSse"
+  },
+  "android": {
+    "androidNamespace": ["turbosse"],
+    "androidCxxLibName": "turbosse"
+  },
+  "autolinking": {
+    "TurboSse": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "TurboSse"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "TurboSse"
+      }
+    }
+  },
+  "ignorePaths": ["node_modules"]
+}
