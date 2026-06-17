@@ -9,7 +9,7 @@ Designed explicitly for high-frequency token streaming (e.g., OpenAI, Anthropic,
 - 🚀 **Turbo Modules & JSI**: Bypasses the old React Native bridge. Tokens are sent from native C++/Swift/Kotlin to JS instantly.
 - ⚡ **Zero-Buffering**: Built on iOS `URLSessionDataDelegate` and Android `OkHttp` to ensure chunks are delivered exactly as they arrive over the network.
 - 🤖 **Perfect for LLMs**: Handles sub-millisecond firehose streaming (token-by-token) without dropping frames.
-- ♻️ **Auto-Reconnect**: Strictly follows the WHATWG EventSource specification, including automatic exponential backoff reconnection (1s → 30s jitter) and `Last-Event-ID` tracking.
+- 🤖 **Perfect for LLM Streaming**: Explicit manual control over disconnections and reconnections to prevent server context loss (unlike standard EventSource).
 - 📱 **Background Streams**: Configured to allow streams to survive when the app is backgrounded.
 - 🛠️ **Expo Support**: Ships with a fully configured Expo Config Plugin for seamless integration.
 - 📦 **New Architecture Ready**: Fully compatible with React Native 0.74+ and Fabric.
