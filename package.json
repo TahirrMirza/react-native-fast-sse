@@ -12,6 +12,9 @@
     },
     "./package.json": "./package.json"
   },
+  "expo": {
+    "plugin": "./plugin/build/index.js"
+  },
   "files": [
     "src",
     "lib",
@@ -21,6 +24,7 @@
     "nitrogen",
     "nitro.json",
     "*.podspec",
+    "plugin/build",
     "react-native.config.js",
     "!ios/build",
     "!android/build",
@@ -43,7 +47,8 @@
     "test": "jest",
     "release": "release-it --only-version",
     "web": "vite",
-    "build:web": "vite build"
+    "build:web": "vite build",
+    "build:plugin": "tsc -p plugin/tsconfig.json"
   },
   "keywords": [
     "react-native",
@@ -68,6 +73,7 @@
     "@eslint/compat": "^2.1.0",
     "@eslint/eslintrc": "^3.3.5",
     "@eslint/js": "^10.0.1",
+    "@expo/config-plugins": "~8.0.0",
     "@jest/globals": "^29.7.0",
     "@react-native/babel-preset": "0.85.0",
     "@react-native/eslint-config": "0.85.0",
@@ -79,7 +85,9 @@
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-ft-flow": "^3.0.11",
+    "eslint-plugin-jest": "^29.15.2",
     "eslint-plugin-prettier": "^5.5.6",
+    "expo-module-scripts": "^3.0.0",
     "jest": "^29.7.0",
     "lefthook": "^2.1.9",
     "nitrogen": "^0.35.3",

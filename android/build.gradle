@@ -109,4 +109,9 @@ android {
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation project(":react-native-nitro-modules")
+
+  // OkHttp BOM — pins all okhttp3 artifacts to the same version
+  implementation platform("com.squareup.okhttp3:okhttp-bom:5.4.0")
+  implementation "com.squareup.okhttp3:okhttp"           // version from BOM
+  implementation "com.squareup.okhttp3:okhttp-sse"       // version from BOM
 }

@@ -1,5 +1,125 @@
-class TurboSse: HybridTurboSseSpec {
-    public func multiply(a: Double, b: Double) throws -> Double {
-        return a * b
+import Foundation
+
+class TurboSse: HybridTurboSseSpec, URLSessionDataDelegate {
+    private var session: URLSession?
+    private var dataTask: URLSessionDataTask?
+    private var sseParser: SSEParser?
+    private var closed = false
+    
+    public var readyState: Double = 0.0
+
+    public func connect(
+        url: String, 
+        method: String, 
+        headers: [String: String], 
+        body: String, 
+        onOpen: @escaping () -> Void, 
+        onMessage: @escaping (String, String, String) -> Void, 
+        onError: @escaping (String) -> Void, 
+        onClose: @escaping () -> Void
+    ) throws -> Void {
+        closed = false
+        readyState = 0.0
+        sseParser = SSEParser()
+        
+        guard let requestUrl = URL(string: url) else {
+            onError("Invalid URL")
+            readyState = 2.0
+            return
+        }
+        
+        var request = URLRequest(url: requestUrl)
+        request.httpMethod = method
+        for (key, value) in headers {
+            request.addValue(value, forHTTPHeaderField: key)
+        }
+        
+        if method.uppercased() == "POST" && !body.isEmpty {
+            request.httpBody = body.data(using: .utf8)
+        }
+        
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = .infinity
+        config.timeoutIntervalForResource = .infinity
+        
+        session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+        dataTask = session?.dataTask(with: request)
+        
+        // Store callbacks as properties or use blocks safely. Since Nitro dispatches to JS directly, 
+        // we map these blocks dynamically inside our delegate handling.
+        // Wait, URLSessionDataDelegate methods don't have access to these blocks directly 
+        // if they are local to `connect`. So we must store them.
+        self.onOpenCallback = onOpen
+        self.onMessageCallback = onMessage
+        self.onErrorCallback = onError
+        self.onCloseCallback = onClose
+        
+        dataTask?.resume()
+    }
+
+    public func disconnect() throws -> Void {
+        closed = true
+        readyState = 2.0
+        dataTask?.cancel()
+        session?.invalidateAndCancel()
+        dataTask = nil
+        session = nil
+    }
+    
+    // Store callbacks
+    private var onOpenCallback: (() -> Void)?
+    private var onMessageCallback: ((String, String, String) -> Void)?
+    private var onErrorCallback: ((String) -> Void)?
+    private var onCloseCallback: (() -> Void)?
+
+    // MARK: - URLSessionDataDelegate
+    
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        guard !closed else {
+            completionHandler(.cancel)
+            return
+        }
+        
+        if let httpResponse = response as? HTTPURLResponse, !(200...299).contains(httpResponse.statusCode) {
+            // Optional: you might want to read error body here before failing, but standard SSE fails on non-200.
+            readyState = 2.0
+            onErrorCallback?("HTTP Error \(httpResponse.statusCode)")
+            completionHandler(.cancel)
+            return
+        }
+        
+        readyState = 1.0
+        onOpenCallback?()
+        completionHandler(.allow)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        guard !closed else { return }
+        
+        guard let chunk = String(data: data, encoding: .utf8) else { return }
+        
+        if let events = sseParser?.parse(chunk: chunk) {
+            for event in events {
+                if closed { break }
+                onMessageCallback?(event.type, event.id, event.data)
+            }
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard !closed else { return }
+        readyState = 2.0
+        
+        if let error = error {
+            let nsError = error as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+                // Task was cancelled manually
+                onCloseCallback?()
+            } else {
+                onErrorCallback?(error.localizedDescription)
+            }
+        } else {
+            onCloseCallback?()
+        }
     }
 }
