@@ -1,8 +1,16 @@
 # react-native-turbo-sse
 
-A blazing fast, production-ready Server-Sent Events (SSE) library for React Native built on the New Architecture (Turbo Modules) using Nitrogen and JSI.
+[![npm version](https://img.shields.io/npm/v/react-native-turbo-sse.svg?style=flat-square)](https://www.npmjs.com/package/react-native-turbo-sse)
+[![npm downloads](https://img.shields.io/npm/dm/react-native-turbo-sse.svg?style=flat-square)](https://www.npmjs.com/package/react-native-turbo-sse)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-Designed explicitly for high-frequency token streaming (e.g., OpenAI, Anthropic, ChatGPT-like apps) and massive payloads, this library bypasses the traditional React Native Bridge for zero-latency event delivery.
+A blazing fast, production-ready **Server-Sent Events (SSE)** and **EventSource** library for React Native, built specifically for the **New Architecture (Turbo Modules)** using Nitrogen and JSI.
+
+### 🛑 Why not standard react-native-sse or fetch polyfills?
+
+Traditional React Native SSE libraries run entirely in JavaScript and wrap `XMLHttpRequest`. This causes the native network layer to buffer incoming chunks. If you are building an AI chat interface (OpenAI, Anthropic, Gemini), tokens will arrive in delayed, massive chunks instead of a smooth, typing effect.
+
+`react-native-turbo-sse` uses Nitro Modules and JSI to pipe raw native bytecode (`OkHttp` on Android / `NSURLSession` on iOS) directly to the JavaScript runtime with **zero buffering and sub-millisecond latency**.
 
 ## Features
 
