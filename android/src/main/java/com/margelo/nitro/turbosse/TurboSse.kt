@@ -16,6 +16,10 @@ class TurboSse : HybridTurboSseSpec() {
     .readTimeout(0, TimeUnit.MILLISECONDS) // Important for SSE to not timeout
     .build()
 
+  private var cachedConnectionClient: OkHttpClient? = null
+  private var lastConnectTimeout: Double = -1.0
+  private var lastReadTimeout: Double = -1.0
+
   private var currentSource: EventSource? = null
   private var closed = false
   private var _lastEventId: String = ""
@@ -34,23 +38,30 @@ class TurboSse : HybridTurboSseSpec() {
     onError: (message: String) -> Unit,
     onClose: () -> Unit
   ) {
+    currentSource?.cancel()
     closed = false
     readyState = 0.0
 
     val requestBuilder = Request.Builder().url(url)
     headers.forEach { (k, v) -> requestBuilder.addHeader(k, v) }
     
-    if (httpMethod.uppercase() == "POST") {
-      requestBuilder.post(body.toRequestBody())
+    val method = httpMethod.uppercase()
+    if (method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE") {
+      requestBuilder.method(method, body.toRequestBody())
+    } else {
+      requestBuilder.method(method, null)
     }
 
-    // Configure connection-specific timeouts
-    val connectionClient = client.newBuilder()
-      .connectTimeout(connectTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
-      .readTimeout(readTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
-      .build()
+    if (cachedConnectionClient == null || lastConnectTimeout != connectTimeoutMs || lastReadTimeout != readTimeoutMs) {
+      cachedConnectionClient = client.newBuilder()
+        .connectTimeout(connectTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+        .readTimeout(readTimeoutMs.toLong(), TimeUnit.MILLISECONDS)
+        .build()
+      lastConnectTimeout = connectTimeoutMs
+      lastReadTimeout = readTimeoutMs
+    }
 
-    currentSource = EventSources.createFactory(connectionClient)
+    currentSource = EventSources.createFactory(cachedConnectionClient!!)
       .newEventSource(requestBuilder.build(), object : EventSourceListener() {
         override fun onOpen(es: EventSource, response: Response) {
           if (closed) return

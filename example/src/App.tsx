@@ -1,117 +1,78 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Text,
   View,
   StyleSheet,
   TextInput,
   Button,
-  FlatList,
+  ScrollView,
+  type TextInputProps,
 } from 'react-native';
-import { TurboEventSource } from 'react-native-turbo-sse';
+import { ReadyState, useTurboSSE } from 'react-native-turbo-sse';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  useAnimatedRef,
+} from 'react-native-reanimated';
 
-// Replace with your local machine's IP address if testing on a physical device
-const defaultUrl = 'http://YOUR_AI_API';
+// Local test server endpoint
+const defaultUrl = 'http://192.168.0.136:3000/stream';
+const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
+const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
 export default function App() {
   const [url, setUrl] = useState(defaultUrl);
-  // Store text chunks instead of a single massive string
-  const [messages, setMessages] = useState<string[]>([]);
-  const [status, setStatus] = useState('Disconnected');
-  const [sse, setSse] = useState<TurboEventSource | null>(null);
+  const textValue = useSharedValue('');
+  const scrollViewRef = useAnimatedRef<ScrollView>();
 
-  // Refs for high-frequency rendering optimization
-  const bufferRef = useRef('');
-  const flushTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const animatedProps = useAnimatedProps<TextInputProps & { text?: string }>(
+    () => {
+      return { text: textValue.value };
+    }
+  );
 
-  // Ref for the FlatList to auto-scroll
-  const flatListRef = useRef<FlatList>(null);
+  const { data, status, error, connect, disconnect } = useTurboSSE(url, {
+    method: 'GET',
+    debug: true,
+  });
 
   useEffect(() => {
-    return () => {
-      if (sse) sse.close();
-      if (flushTimeoutRef.current) clearTimeout(flushTimeoutRef.current);
-    };
-  }, [sse]);
+    if (!data) return;
 
-  const setupListeners = (source: TurboEventSource) => {
-    source.onOpen(() => {
-      setStatus('Connected');
-    });
+    if (data.data === '[DONE]') {
+      disconnect();
+      return;
+    }
 
-    source.onMessage((event) => {
-      if (event.data === '[DONE]') {
-        // Flush any remaining text in the buffer
-        if (bufferRef.current) {
-          const finalChunk = bufferRef.current;
-          setMessages((prev) => [...prev, finalChunk]);
-          bufferRef.current = '';
-        }
-        setStatus('Stream Complete');
-        source.close();
-        return;
+    let token = data.data;
+    try {
+      const payload = JSON.parse(data.data);
+      if (payload.candidates?.[0]?.content?.parts?.[0]?.text) {
+        token = payload.candidates[0].content.parts[0].text;
       }
+    } catch (e) {}
 
-      // Try to parse Gemini format, otherwise fall back to raw data
-      let token = event.data;
-      try {
-        const payload = JSON.parse(event.data);
-        if (payload.candidates?.[0]?.content?.parts?.[0]?.text) {
-          token = payload.candidates[0].content.parts[0].text;
-        }
-      } catch (e) {
-        // Not JSON or not Gemini format, keep raw token
-      }
+    // Directly update the UI thread shared value
+    textValue.value = textValue.value + token;
+  }, [data, disconnect, textValue]);
 
-      // Accumulate tokens in the mutable ref
-      bufferRef.current += token;
-
-      // Throttle state updates to 30 FPS
-      if (!flushTimeoutRef.current) {
-        flushTimeoutRef.current = setTimeout(() => {
-          const newChunk = bufferRef.current;
-          bufferRef.current = '';
-          flushTimeoutRef.current = null;
-
-          const MAX_CHARS = 1000;
-          const safeChunk =
-            newChunk.length > MAX_CHARS
-              ? newChunk.substring(0, MAX_CHARS) +
-                `\n\n...[TRUNCATED ${newChunk.length - MAX_CHARS} characters to prevent UI freeze]...`
-              : newChunk;
-
-          setMessages((prev) => [...prev, safeChunk]);
-        }, 32);
-      }
-    });
-
-    source.onError((err) => {
-      setStatus(`Error: ${err.message}`);
-    });
-
-    setSse(source);
-    source.connect();
-  };
-
-  const connect = () => {
+  const handleConnect = () => {
     if (!url) return;
-    if (sse) sse.close();
-
-    setMessages([]);
-    bufferRef.current = '';
-    setStatus('Connecting...');
-
-    const source = new TurboEventSource(url, {
-      method: 'GET',
-    });
-
-    setupListeners(source);
+    textValue.value = '';
+    connect();
   };
 
-  const disconnect = () => {
-    if (sse) {
-      sse.close();
-      setSse(null);
-      setStatus('Disconnected');
+  const getStatusText = () => {
+    if (error) return `Error: ${error.message}`;
+    switch (status) {
+      case ReadyState.CONNECTING:
+        return 'Connecting...';
+      case ReadyState.OPEN:
+        return 'Connected';
+      case ReadyState.CLOSED:
+        return 'Disconnected';
+      default:
+        return 'Unknown';
     }
   };
 
@@ -127,26 +88,38 @@ export default function App() {
       />
 
       <View style={styles.row}>
-        <Button title="Connect" onPress={connect} />
-        <Button title="Disconnect" onPress={disconnect} color="red" />
+        <Button
+          title="Connect"
+          onPress={handleConnect}
+          disabled={
+            status === ReadyState.OPEN || status === ReadyState.CONNECTING
+          }
+        />
+        <Button
+          title="Disconnect"
+          onPress={disconnect}
+          color="red"
+          disabled={status === ReadyState.CLOSED}
+        />
       </View>
 
-      <Text style={styles.status}>Status: {status}</Text>
+      <Text style={styles.status}>Status: {getStatusText()}</Text>
 
-      {/* Use FlatList to safely render massive text blocks without freezing Yoga */}
-      <FlatList
-        ref={flatListRef}
+      <AnimatedScrollView
+        ref={scrollViewRef}
         style={styles.logs}
-        data={messages}
-        keyExtractor={(_, index) => index.toString()}
-        renderItem={({ item }) => <Text style={styles.logText}>{item}</Text>}
         onContentSizeChange={() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
+          scrollViewRef.current?.scrollToEnd({ animated: true });
         }}
-        onLayout={() => {
-          flatListRef.current?.scrollToEnd({ animated: true });
-        }}
-      />
+      >
+        <AnimatedTextInput
+          editable={false}
+          multiline
+          scrollEnabled={false}
+          animatedProps={animatedProps}
+          style={styles.logText}
+        />
+      </AnimatedScrollView>
     </View>
   );
 }

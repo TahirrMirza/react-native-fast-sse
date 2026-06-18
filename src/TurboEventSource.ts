@@ -1,9 +1,6 @@
 import { NitroModules } from 'react-native-nitro-modules';
 import type { TurboSse } from './TurboSse.nitro';
-import type { TurboSSEOptions, SSEEvent } from './types';
-
-const TurboSseHybridObject =
-  NitroModules.createHybridObject<TurboSse>('TurboSse');
+import { ReadyState, type TurboSSEOptions, type SSEEvent } from './types';
 
 export class TurboEventSource {
   private _native: TurboSse;
@@ -13,6 +10,17 @@ export class TurboEventSource {
   private _lastEventId: string = '';
   private _userClosed = false;
 
+  private _listeners: {
+    open: Array<() => void>;
+    message: Array<(event: SSEEvent) => void>;
+    error: Array<(err: Error) => void>;
+  } = {
+    open: [],
+    message: [],
+    error: [],
+  };
+
+  // Deprecated single-listener properties for backwards compatibility
   private _onOpenCallback?: () => void;
   private _onMessageCallback?: (event: SSEEvent) => void;
   private _onErrorCallback?: (err: Error) => void;
@@ -20,20 +28,87 @@ export class TurboEventSource {
   constructor(url: string, options?: TurboSSEOptions) {
     this._url = url;
     this._options = options || {};
-    this._native = TurboSseHybridObject;
+    this._native = NitroModules.createHybridObject<TurboSse>('TurboSse');
   }
 
-  get readyState(): 0 | 1 | 2 {
-    return this._native.readyState as 0 | 1 | 2;
+  private _log(...args: unknown[]): void {
+    if (this._options.debug) {
+      console.log('[TurboSSE]', ...args);
+    }
   }
 
-  /**
-   * Manually initiates the connection to the SSE endpoint.
-   */
+  private _error(...args: unknown[]): void {
+    if (this._options.debug) {
+      console.error('[TurboSSE]', ...args);
+    }
+  }
+
+  get readyState(): ReadyState {
+    return this._native.readyState as ReadyState;
+  }
+
   public connect(): void {
     this._userClosed = false;
     this._connectInternal();
   }
+
+  // --- Event Listener API ---
+
+  public addEventListener(type: 'open', listener: () => void): void;
+  public addEventListener(
+    type: 'message',
+    listener: (event: SSEEvent) => void
+  ): void;
+  public addEventListener(type: 'error', listener: (err: Error) => void): void;
+  public addEventListener(
+    type: 'open' | 'message' | 'error',
+    listener: any
+  ): void {
+    if (type === 'open') {
+      this._listeners.open.push(listener);
+    } else if (type === 'message') {
+      this._listeners.message.push(listener);
+    } else if (type === 'error') {
+      this._listeners.error.push(listener);
+    }
+  }
+
+  public removeEventListener(type: 'open', listener: () => void): void;
+  public removeEventListener(
+    type: 'message',
+    listener: (event: SSEEvent) => void
+  ): void;
+  public removeEventListener(
+    type: 'error',
+    listener: (err: Error) => void
+  ): void;
+  public removeEventListener(
+    type: 'open' | 'message' | 'error',
+    listener: any
+  ): void {
+    if (type === 'open') {
+      this._listeners.open = this._listeners.open.filter(
+        (cb) => cb !== listener
+      );
+    } else if (type === 'message') {
+      this._listeners.message = this._listeners.message.filter(
+        (cb) => cb !== listener
+      );
+    } else if (type === 'error') {
+      this._listeners.error = this._listeners.error.filter(
+        (cb) => cb !== listener
+      );
+    }
+  }
+
+  public removeAllEventListeners(): void {
+    this._listeners = { open: [], message: [], error: [] };
+    this._onOpenCallback = undefined;
+    this._onMessageCallback = undefined;
+    this._onErrorCallback = undefined;
+  }
+
+  // --- Deprecated Single Listener API ---
 
   onOpen(cb: () => void): void {
     this._onOpenCallback = cb;
@@ -47,15 +122,15 @@ export class TurboEventSource {
     this._onErrorCallback = cb;
   }
 
+  // --- Lifecycle ---
+
   public close(): void {
-    console.log(`[TurboSSE] User closed connection to ${this._url}`);
+    this._log(`User closed connection to ${this._url}`);
     this._userClosed = true;
     this._native.disconnect();
+    this.removeAllEventListeners();
   }
 
-  /**
-   * Disconnects the stream. Alias for close().
-   */
   public disconnect(): void {
     this.close();
   }
@@ -68,9 +143,7 @@ export class TurboEventSource {
       headers['Last-Event-ID'] = this._lastEventId;
     }
 
-    console.log(
-      `[TurboSSE] Connecting to ${this._url} with method ${httpMethod}`
-    );
+    this._log(`Connecting to ${this._url} with method ${httpMethod}`);
 
     this._native.connect(
       this._url,
@@ -80,25 +153,30 @@ export class TurboEventSource {
       this._options.connectTimeoutMs ?? 10000,
       this._options.readTimeoutMs ?? 0,
       () => {
-        console.log(`[TurboSSE] Connected successfully to ${this._url}`);
+        this._log(`Connected successfully to ${this._url}`);
         this._onOpenCallback?.();
+        this._listeners.open.forEach((cb) => cb());
       },
       (event: string, id: string, data: string) => {
-        console.log(
-          `[TurboSSE] Received message - Event: ${event}, ID: ${id}, Data length: ${data.length}`
+        this._log(
+          `Received message - Event: ${event}, ID: ${id}, Data length: ${data.length}`
         );
         if (id) {
           this._lastEventId = id;
         }
-        this._onMessageCallback?.({ event, id, data });
+        const sseEvent = { event, id, data };
+        this._onMessageCallback?.(sseEvent);
+        this._listeners.message.forEach((cb) => cb(sseEvent));
       },
       (message: string) => {
-        console.error(`[TurboSSE] Native error: ${message}`);
-        this._onErrorCallback?.(new Error(message));
+        this._error(`Native error: ${message}`);
+        const err = new Error(message);
+        this._onErrorCallback?.(err);
+        this._listeners.error.forEach((cb) => cb(err));
         this._handleDisconnect(message);
       },
       () => {
-        console.log(`[TurboSSE] Native connection closed.`);
+        this._log(`Native connection closed.`);
         this._handleDisconnect();
       }
     );
@@ -106,6 +184,6 @@ export class TurboEventSource {
 
   private _handleDisconnect(errorMsg?: string): void {
     if (this._userClosed) return;
-    console.log(`[TurboSSE] Disconnected. Error: ${errorMsg || 'None'}`);
+    this._log(`Disconnected. Error: ${errorMsg || 'None'}`);
   }
 }

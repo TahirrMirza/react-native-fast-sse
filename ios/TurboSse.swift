@@ -37,12 +37,13 @@ class TurboSse: HybridTurboSseSpec {
             request.addValue(value, forHTTPHeaderField: key)
         }
         
-        if httpMethod.uppercased() == "POST" && !body.isEmpty {
+        let method = httpMethod.uppercased()
+        if (method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE") && !body.isEmpty {
             request.httpBody = body.data(using: .utf8)
         }
         
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = readTimeoutMs > 0 ? readTimeoutMs / 1000.0 : .infinity
+        config.timeoutIntervalForRequest = connectTimeoutMs > 0 ? connectTimeoutMs / 1000.0 : .infinity
         // timeoutIntervalForResource sets a hard limit on the TOTAL time of the connection (including streaming time).
         // Since SSE is a long-lived stream, we must set this to infinity.
         config.timeoutIntervalForResource = .infinity
