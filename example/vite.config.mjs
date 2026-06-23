@@ -12,5 +12,4 @@ export default defineConfig((env) =>
       conditions: ['react-native-fast-sse-source'],
       dedupe: Object.keys(pack.peerDependencies),
     },
-  })
-);
+  }));
