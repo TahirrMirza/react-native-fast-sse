@@ -11,12 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `useFastSSE` React hook for easy stream consumption and lifecycle management.
 - `ReadyState` enum exported for strict type checking of connection states.
-- `.addEventListener`, `.removeEventListener`, and `.removeAllEventListeners` API to `TurboEventSource` supporting multiple listeners per stream.
+- `.addEventListener`, `.removeEventListener`, and `.removeAllEventListeners` API to `FastEventSource` supporting multiple listeners per stream.
 - `debug?: boolean` flag in `FastSSEOptions` to toggle verbose console logging.
 
 ### Fixed
 
-- **Critical:** Shared singleton bug where multiple `TurboEventSource` instances overwrote the same native connection callbacks.
+- **Critical:** Shared singleton bug where multiple `FastEventSource` instances overwrote the same native connection callbacks.
 - **Android:** Resolved OkHttpClient resource leak by caching the client builder, only rebuilding if timeouts change.
 - **Android:** Cancels any active connection correctly when `.connect()` is called consecutively without disconnecting.
 - **iOS:** Fixed `connectTimeoutMs` parameter being silently ignored. It now properly applies to `timeoutIntervalForRequest`.

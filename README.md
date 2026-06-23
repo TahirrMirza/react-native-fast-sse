@@ -5,7 +5,7 @@
 [![New Architecture](https://img.shields.io/badge/New%20Architecture-required-blue.svg?style=flat-square)](https://reactnative.dev/docs/new-architecture-intro)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-A blazing fast, production-ready **Server-Sent Events (SSE)** and **EventSource** library for React Native, built specifically for the **New Architecture (Turbo Modules)** using Nitrogen and JSI.
+A blazing fast, production-ready **Server-Sent Events (SSE)** and **EventSource** library for React Native, built specifically for the **New Architecture (Nitro Modules)** using Nitrogen and JSI.
 
 ## Table of Contents
 
@@ -26,7 +26,7 @@ Traditional React Native SSE libraries run entirely in JavaScript and wrap `XMLH
 
 ## Features
 
-- 🚀 **Turbo Modules & JSI**: Bypasses the old React Native bridge. Tokens are sent from native C++/Swift/Kotlin to JS instantly.
+- 🚀 **Nitro Modules & JSI**: Bypasses the old React Native bridge. Tokens are sent from native C++/Swift/Kotlin to JS instantly.
 - ⚡ **Zero-Buffering**: Built on iOS `URLSessionDataDelegate` and Android `OkHttp` to ensure chunks are delivered exactly as they arrive over the network.
 - 🤖 **Perfect for LLMs**: Handles sub-millisecond firehose streaming (token-by-token) without dropping frames, with explicit manual control over reconnections to prevent server context loss.
 - 📱 **Background Streams**: Configured to allow streams to survive when the app is backgrounded.
@@ -107,13 +107,13 @@ export default function App() {
 
 ### The Vanilla Class API
 
-If you need more manual control or are working outside of React components, you can instantiate the `TurboEventSource` class directly. It mirrors the standard web `EventSource` API with support for multiple event listeners.
+If you need more manual control or are working outside of React components, you can instantiate the `FastEventSource` class directly. It mirrors the standard web `EventSource` API with support for multiple event listeners.
 
 ```typescript
-import { TurboEventSource } from 'react-native-fast-sse';
+import { FastEventSource } from 'react-native-fast-sse';
 
 // 1. Create a new connection
-const source = new TurboEventSource(
+const source = new FastEventSource(
   'https://api.openai.com/v1/chat/completions',
   {
     method: 'POST', // Defaults to GET
@@ -169,7 +169,7 @@ source.connect();
 
 ## API Methods
 
-The `TurboEventSource` class gives you full manual control over the stream:
+The `FastEventSource` class gives you full manual control over the stream:
 
 - `connect()`: Opens the connection to the SSE endpoint.
 - `disconnect()` / `close()`: Closes the active stream and cleans up native resources.

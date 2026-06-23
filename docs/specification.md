@@ -201,7 +201,7 @@ export interface FastSSEOptions {
 ### Core Class
 
 ```typescript
-export class TurboEventSource {
+export class FastEventSource {
   constructor(url: string, options?: FastSSEOptions);
 
   onOpen(callback: () => void): void;
@@ -405,8 +405,8 @@ Execute in this exact order to avoid circular dependencies:
 | **3** | **Android Kotlin Implementation** | Implement `FastSse.kt` extending `HybridFastSseSpec`. Wire `EventSourceListener` callbacks to the JSI `std::function` parameters received from JS. |
 | **4** | **iOS Swift Implementation** | Implement `FastSse.swift` extending `HybridFastSseSpec`. Wire `URLSessionDataDelegate` callbacks to JSI function parameters. |
 | **5** | **Payload Trimming** | Ensure native string streams trim `\r\n` **before** piping into the runtime to conform with the [SSE specification (WHATWG)](https://html.spec.whatwg.org/multipage/server-sent-events.html). |
-| **6** | **JS Wrapper Class** | Build the `TurboEventSource` class (Section 4) that wraps the raw Nitro hybrid object with a clean EventSource-like API. |
-| **7** | **TypeScript Exports** | Update `src/index.tsx` to export `TurboEventSource`, `FastSSEOptions`, `SSEEvent`. |
+| **6** | **JS Wrapper Class** | Build the `FastEventSource` class (Section 4) that wraps the raw Nitro hybrid object with a clean EventSource-like API. |
+| **7** | **TypeScript Exports** | Update `src/index.tsx` to export `FastEventSource`, `FastSSEOptions`, `SSEEvent`. |
 | **8** | **Expo Config Plugin** | Build plugin under `plugin/src/`, compile to `plugin/build/`, wire into `package.json` `expo.plugin` field. |
 | **9** | **Example App** | Wire up a demo in `example/` that streams from an OpenAI-compatible endpoint and renders tokens in real-time. |
 

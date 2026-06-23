@@ -13,7 +13,7 @@ http
     res.flushHeaders();
 
     const baseText =
-      'This is a streaming test scenario to verify the robustness of React Native Turbo SSE. ';
+      'This is a streaming test scenario to verify the robustness of React Native Fast SSE. ';
 
     if (req.url === '/firehose') {
       const text = baseText.repeat(200);

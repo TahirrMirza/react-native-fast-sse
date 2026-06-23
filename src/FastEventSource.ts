@@ -2,7 +2,7 @@ import { NitroModules } from 'react-native-nitro-modules';
 import type { FastSse } from './FastSse.nitro';
 import { ReadyState, type FastSSEOptions, type SSEEvent } from './types';
 
-export class TurboEventSource {
+export class FastEventSource {
   private _native: FastSse;
   private _url: string;
   private _options: FastSSEOptions;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { TurboEventSource } from './TurboEventSource';
+import { FastEventSource } from './FastEventSource';
 import { ReadyState, type FastSSEOptions, type SSEEvent } from './types';
 
 export function useFastSSE(url: string, options?: FastSSEOptions) {
@@ -7,7 +7,7 @@ export function useFastSSE(url: string, options?: FastSSEOptions) {
   const [status, setStatus] = useState<ReadyState>(ReadyState.CLOSED);
   const [error, setError] = useState<Error | null>(null);
 
-  const sourceRef = useRef<TurboEventSource | null>(null);
+  const sourceRef = useRef<FastEventSource | null>(null);
 
   const connect = useCallback(() => {
     if (sourceRef.current) {
@@ -17,7 +17,7 @@ export function useFastSSE(url: string, options?: FastSSEOptions) {
     setStatus(ReadyState.CONNECTING);
     setError(null);
 
-    const source = new TurboEventSource(url, options);
+    const source = new FastEventSource(url, options);
     sourceRef.current = source;
 
     source.addEventListener('open', () => {

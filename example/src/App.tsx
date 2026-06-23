@@ -78,7 +78,7 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Turbo SSE Demo</Text>
+      <Text style={styles.title}>Fast SSE Demo</Text>
       <TextInput
         style={styles.input}
         placeholder="SSE Endpoint URL"
